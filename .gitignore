@@ -1,0 +1,13 @@
+node_modules/
+typings/
+dist/
+out/
+
+# macOS
+.DS_Store
+
+#Visual Studio
+.vscode/*
+
+#Published Extension
+*.vsix

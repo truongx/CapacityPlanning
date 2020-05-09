@@ -1,0 +1,57 @@
+{
+  "manifestVersion": 1,
+  "version": "0.0.5",
+  "name": "Capacity Planning",
+  "description": "Capacity Planning hub allows you to get a bird's eye view on the work planned for people across sprints",
+  "publisher": "truongx",
+  "scopes": [
+    "vso.project",
+    "vso.work"
+  ],
+  "demands": [
+    "api-version/3.0"
+  ],
+  "categories": [
+    "Azure Boards"
+  ],
+  "targets": [
+    {
+      "id": "Microsoft.VisualStudio.Services"
+    }
+  ],
+  "content": {
+    "details": {
+      "path": "README.md"
+    }
+  },
+  "icons": {
+    "default": "img/world.png"
+  },
+  "files": [
+    {
+      "path": "dist",
+      "addressable": true
+    },
+    {
+      "path": "img",
+      "addressable": true
+    }
+  ],
+  "contributions": [
+    {
+      "id": "capacity-planning-hub",
+      "type": "ms.vss-web.hub",
+      "targets": [
+        "ms.vss-work-web.work-hub-group"
+      ],
+      "properties": {
+        "name": "Capacity Planing",
+        "icon": {
+          "dark": "img/darkTheme/hubIcon.png",
+          "light": "img/lightTheme/hubIcon.png"
+        },
+        "uri": "dist/hub/hub.html"
+      }
+    }
+  ]
+}
