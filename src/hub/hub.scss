@@ -13,13 +13,13 @@
 }
 
 .utilization-low {
-  color: $status-success-foreground;
+  color: rgba(146, 195, 83, 1);
 }
 
 .utilization-medium {
-  color: $status-warning-foreground;
+  color: rgba(253, 185, 19, 1);
 }
 
 .utilization-high {
-  color: $status-error-foreground;
+  color: rgba(241, 112, 123, 1);
 }
