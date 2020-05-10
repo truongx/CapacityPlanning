@@ -2,35 +2,17 @@ import "./hub.scss";
 
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import * as SDK from "azure-devops-extension-sdk";
-import * as API from "azure-devops-extension-api/Common";
-import {
-  CoreRestClient,
-  WebApiTeam,
-  TeamContext,
-  ProjectInfo,
-} from "azure-devops-extension-api/Core";
+import { WebApiTeam, TeamContext } from "azure-devops-extension-api/Core";
 import { Dropdown, DropdownExpandableButton } from "azure-devops-ui/Dropdown";
 import { IListBoxItem, ListBoxItemType } from "azure-devops-ui/ListBox";
 import {
-  WorkRestClient,
   TeamSettingsIteration,
-  TeamMemberCapacity,
   TeamMemberCapacityIdentityRef,
   TeamSetting,
   TeamSettingsDaysOff,
 } from "azure-devops-extension-api/Work";
-import {
-  WorkItemTrackingRestClient,
-  WorkItem,
-} from "azure-devops-extension-api/WorkItemTracking";
-import {
-  CommonServiceIds,
-  IProjectPageService,
-  IProjectInfo,
-  IHostNavigationService,
-  ILocationService,
-} from "azure-devops-extension-api";
+import { WorkItem } from "azure-devops-extension-api/WorkItemTracking";
+import { IProjectInfo } from "azure-devops-extension-api";
 import { Button } from "azure-devops-ui/Button";
 import { Header } from "azure-devops-ui/Header";
 import { Page } from "azure-devops-ui/Page";
@@ -40,7 +22,7 @@ import { Card } from "azure-devops-ui/Card";
 import { TeamMember } from "azure-devops-extension-api/WebApi/WebApi";
 import PlanningTable from "./PlanningTable";
 import Dictionary from "./Dictionary";
-import { css } from "azure-devops-ui/Util";
+import CapacityPlanningService from "./CapacityPlanningService";
 
 interface IHubState {
   project?: IProjectInfo;
@@ -79,126 +61,16 @@ class Hub extends React.Component<{}, IHubState> {
   }
 
   private async initializeState(): Promise<void> {
-    SDK.init();
-    await SDK.ready();
-    // const accessToken = await SDK.getAccessToken();
-    // const appToken = await SDK.getAppToken();
-    // console.log("access token: " + accessToken);
-    // console.log("app token: " + appToken);
-    const projectService = await SDK.getService<IProjectPageService>(
-      CommonServiceIds.ProjectPageService
-    );
-    const locationService = await SDK.getService<ILocationService>(
-      CommonServiceIds.LocationService
-    );
-    const serviceUrl = await locationService.getResourceAreaLocation(
-      "79134c72-4a58-4b42-976c-04e7115f32bf"
-    );
-    const project = await projectService.getProject();
-    const teams = await API.getClient(CoreRestClient).getAllTeams();
-    const baseUrl = `${serviceUrl}${(project as ProjectInfo).name}\/`;
-    console.log(baseUrl);
-    this.setState({ teams, project, baseUrl });
+    await CapacityPlanningService.init();
+    const project = CapacityPlanningService.project;
+    const teams = await CapacityPlanningService.getAllTeams();
+    const baseUrl = CapacityPlanningService.baseUrl;
+    if (project && teams && baseUrl) {
+      this.setState({ teams, project, baseUrl });
+    } else {
+      console.error("initializeState error");
+    }
   }
-
-  private getTeamMembers = async (projectId: string, teamId: string) => {
-    const teamMembers = await API.getClient(
-      CoreRestClient
-    ).getTeamMembersWithExtendedProperties(projectId, teamId);
-    console.log("Team Members:");
-    console.log(teamMembers);
-    const filteredTeamMembers = teamMembers.filter((member) => {
-      return !member.identity.isContainer;
-    });
-    console.log("Filtered Team Members:");
-    console.log(filteredTeamMembers);
-    return filteredTeamMembers;
-  };
-
-  private getTeamSettings = async (teamContext: TeamContext) => {
-    return await API.getClient(WorkRestClient).getTeamSettings(teamContext);
-  };
-
-  private getCapacities = async (
-    teamContext: TeamContext,
-    iterationId: string
-  ) => {
-    const capacities = await API.getClient(
-      WorkRestClient
-    ).getCapacitiesWithIdentityRef(teamContext, iterationId);
-    console.log("Iteration capacities:");
-    console.log(capacities);
-    return capacities;
-  };
-
-  private getIterations = async (teamContext: TeamContext) => {
-    const teamIterations = await API.getClient(
-      WorkRestClient
-    ).getTeamIterations(teamContext);
-    const iterations = teamIterations.filter((iter) => {
-      const startDate = this.state.startDate as Date;
-      const endDate = this.state.endDate as Date;
-
-      return (
-        iter.attributes.startDate >= startDate &&
-        iter.attributes.startDate <= endDate
-        // &&
-        // iter.attributes.finishDate <= endDate
-      );
-    });
-    console.log("Team Iterations:");
-    console.log(teamIterations);
-    console.log("Filtered Iterations:");
-    console.log(iterations);
-    return iterations;
-  };
-
-  private getIterationWorkItems = async (
-    teamContext: TeamContext,
-    iterationId: string
-  ) => {
-    const iterationWorkItems = await API.getClient(
-      WorkRestClient
-    ).getIterationWorkItems(teamContext, iterationId);
-
-    console.log("Iteration work item links:");
-    console.log(iterationWorkItems);
-
-    const workItemIds = iterationWorkItems.workItemRelations
-      .filter((wil) => {
-        return wil.rel === null;
-      })
-      .map((wil) => {
-        return wil.target.id;
-      });
-
-    console.log("Iteration work item Ids:");
-    console.log(workItemIds);
-
-    if (workItemIds.length > 0) {
-      const workItems = await API.getClient(
-        WorkItemTrackingRestClient
-      ).getWorkItems(workItemIds, teamContext.project);
-
-      console.log("Iteration work items:");
-      console.log(workItems);
-
-      return workItems;
-    } else return [];
-  };
-
-  private getTeamDaysOff = async (
-    teamContext: TeamContext,
-    iterationId: string
-  ) => {
-    const teamDaysOff = await API.getClient(WorkRestClient).getTeamDaysOff(
-      teamContext,
-      iterationId
-    );
-    console.log("Team days off:");
-    console.log(teamDaysOff);
-    return teamDaysOff;
-  };
 
   public render(): JSX.Element {
     const teams = this.state.teams.map(
@@ -354,20 +226,38 @@ class Hub extends React.Component<{}, IHubState> {
       teamId: teamId,
     } as TeamContext;
     this.setState({ loading: true });
-    const iterations = await this.getIterations(teamContext);
-    const teamMembers = await this.getTeamMembers(projectId, teamId);
-    const teamSettings = await this.getTeamSettings(teamContext);
+    const iterations = await CapacityPlanningService.getIterations(
+      teamContext,
+      this.state.startDate as Date,
+      this.state.endDate as Date
+    );
+    const teamMembers = await CapacityPlanningService.getTeamMembers(
+      projectId,
+      teamId
+    );
+    const teamSettings = await CapacityPlanningService.getTeamSettings(
+      teamContext
+    );
     let iterationCapacities: Dictionary<TeamMemberCapacityIdentityRef[]> = {};
     let iterationWorkItems: Dictionary<WorkItem[]> = {};
     let iterationDaysOff: Dictionary<TeamSettingsDaysOff> = {};
     for (let iter of iterations) {
       console.log("Iteration '" + iter.name);
-      const capacities = await this.getCapacities(teamContext, iter.id);
-      iterationCapacities[iter.id] = capacities;
-      const workItems = await this.getIterationWorkItems(teamContext, iter.id);
+      const capacities = await CapacityPlanningService.getCapacities(
+        teamContext,
+        iter.id
+      );
+      if (capacities) iterationCapacities[iter.id] = capacities;
+      const workItems = await CapacityPlanningService.getIterationWorkItems(
+        teamContext,
+        iter.id
+      );
       iterationWorkItems[iter.id] = workItems;
-      const teamDaysOff = await this.getTeamDaysOff(teamContext, iter.id);
-      iterationDaysOff[iter.id] = teamDaysOff;
+      const teamDaysOff = await CapacityPlanningService.getTeamDaysOff(
+        teamContext,
+        iter.id
+      );
+      if (teamDaysOff) iterationDaysOff[iter.id] = teamDaysOff;
     }
 
     this.setState({
@@ -377,7 +267,7 @@ class Hub extends React.Component<{}, IHubState> {
       iterationCapacities,
       teamSettings,
       iterationWorkItems,
-      iterationDaysOff
+      iterationDaysOff,
     });
   };
 }
