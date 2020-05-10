@@ -18,6 +18,7 @@ import {
   TeamMemberCapacity,
   TeamMemberCapacityIdentityRef,
   TeamSetting,
+  TeamSettingsDaysOff,
 } from "azure-devops-extension-api/Work";
 import {
   WorkItemTrackingRestClient,
@@ -50,6 +51,7 @@ interface IHubState {
   iterations: TeamSettingsIteration[];
   iterationCapacities: Dictionary<TeamMemberCapacityIdentityRef[]>;
   iterationWorkItems: Dictionary<WorkItem[]>;
+  iterationDaysOff: Dictionary<TeamSettingsDaysOff>;
   startDate?: Date;
   endDate?: Date;
   loading: boolean;
@@ -57,7 +59,7 @@ interface IHubState {
 }
 
 class Hub extends React.Component<{}, IHubState> {
-  private debug = true;
+  private debug = false;
 
   constructor(props: {}) {
     super(props);
@@ -66,6 +68,7 @@ class Hub extends React.Component<{}, IHubState> {
       teamMembers: [],
       iterationCapacities: {},
       iterationWorkItems: {},
+      iterationDaysOff: {},
       iterations: [],
       loading: false,
     };
@@ -138,7 +141,9 @@ class Hub extends React.Component<{}, IHubState> {
 
       return (
         iter.attributes.startDate >= startDate &&
-        iter.attributes.finishDate <= endDate
+        iter.attributes.startDate <= endDate
+        // &&
+        // iter.attributes.finishDate <= endDate
       );
     });
     console.log("Team Iterations:");
@@ -180,6 +185,19 @@ class Hub extends React.Component<{}, IHubState> {
 
       return workItems;
     } else return [];
+  };
+
+  private getTeamDaysOff = async (
+    teamContext: TeamContext,
+    iterationId: string
+  ) => {
+    const teamDaysOff = await API.getClient(WorkRestClient).getTeamDaysOff(
+      teamContext,
+      iterationId
+    );
+    console.log("Team days off:");
+    console.log(teamDaysOff);
+    return teamDaysOff;
   };
 
   public render(): JSX.Element {
@@ -229,7 +247,7 @@ class Hub extends React.Component<{}, IHubState> {
               onClick={this.loadData}
             />
           </Card>
-          {this.state.loading && this.debug && (
+          {this.state.loading && (
             <div
               className="flex flex-grow flex-center full-size justify-center"
               style={{ height: "60vh" }}
@@ -249,6 +267,7 @@ class Hub extends React.Component<{}, IHubState> {
               teamMembers={this.state.teamMembers}
               iterationCapacities={this.state.iterationCapacities}
               iterationWorkItems={this.state.iterationWorkItems}
+              iterationDaysOff={this.state.iterationDaysOff}
               baseUrl={this.state.baseUrl}
               team={this.state.team}
               teamSettings={this.state.teamSettings}
@@ -340,12 +359,15 @@ class Hub extends React.Component<{}, IHubState> {
     const teamSettings = await this.getTeamSettings(teamContext);
     let iterationCapacities: Dictionary<TeamMemberCapacityIdentityRef[]> = {};
     let iterationWorkItems: Dictionary<WorkItem[]> = {};
+    let iterationDaysOff: Dictionary<TeamSettingsDaysOff> = {};
     for (let iter of iterations) {
       console.log("Iteration '" + iter.name);
       const capacities = await this.getCapacities(teamContext, iter.id);
       iterationCapacities[iter.id] = capacities;
       const workItems = await this.getIterationWorkItems(teamContext, iter.id);
       iterationWorkItems[iter.id] = workItems;
+      const teamDaysOff = await this.getTeamDaysOff(teamContext, iter.id);
+      iterationDaysOff[iter.id] = teamDaysOff;
     }
 
     this.setState({
@@ -355,6 +377,7 @@ class Hub extends React.Component<{}, IHubState> {
       iterationCapacities,
       teamSettings,
       iterationWorkItems,
+      iterationDaysOff
     });
   };
 }

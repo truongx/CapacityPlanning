@@ -14,16 +14,25 @@ import {
   TeamSettingsIteration,
   TeamMemberCapacityIdentityRef,
   TeamSetting,
+  Activity,
+  TeamSettingsDaysOff,
 } from "azure-devops-extension-api/Work";
 import { ArrayItemProvider } from "azure-devops-ui/Utilities/Provider";
 import { ISimpleListCell } from "azure-devops-ui/List";
 import { css } from "azure-devops-ui/Util";
 import { Card } from "azure-devops-ui/Card";
-import { TeamMember, IdentityRef } from "azure-devops-extension-api/WebApi/WebApi";
+import {
+  TeamMember,
+  IdentityRef,
+} from "azure-devops-extension-api/WebApi/WebApi";
 import Dictionary from "./Dictionary";
 import { WebApiTeam } from "azure-devops-extension-api/Core";
 import { WorkItem } from "azure-devops-extension-api/WorkItemTracking";
-import { VssPersona, IIdentityDetailsProvider } from "azure-devops-ui/VssPersona";
+import {
+  VssPersona,
+  IIdentityDetailsProvider,
+} from "azure-devops-ui/VssPersona";
+import DateUtil from "./DateUtil";
 
 export interface IPlanningTableProps {
   team?: WebApiTeam;
@@ -31,12 +40,22 @@ export interface IPlanningTableProps {
   teamMembers: TeamMember[];
   iterationCapacities: Dictionary<TeamMemberCapacityIdentityRef[]>;
   iterationWorkItems: Dictionary<WorkItem[]>;
+  iterationDaysOff: Dictionary<TeamSettingsDaysOff>;
   baseUrl?: string;
   teamSettings?: TeamSetting;
 }
 
+export interface IPlanningTableState {
+  teamMemberIterationCapacities: Dictionary<ITeamMemberIterationCapacity[]>;
+}
+
 export interface ITableItem {
   person: TeamMember;
+}
+
+interface ITeamMemberIterationCapacity {
+  teamMemberId: string;
+  capacity: number;
 }
 
 export default class PlanningTable extends React.Component<
@@ -140,26 +159,61 @@ export default class PlanningTable extends React.Component<
     );
   };
 
-  private getIdentityDetails(identity: IdentityRef): IIdentityDetailsProvider | undefined {
+  private getIdentityDetails(
+    identity: IdentityRef
+  ): IIdentityDetailsProvider | undefined {
     return {
       getDisplayName() {
         return identity.displayName;
       },
       getIdentityImageUrl(size: number) {
-          return identity.imageUrl;
-      }
-    }
+        return identity.imageUrl;
+      },
+    };
   }
 
   private getTeamMemberCapacity = (
     teamMemberId: string,
     iterationId: string
   ): string => {
-    const capacity = this.props.iterationCapacities[iterationId].find(
+    const capacities = this.props.iterationCapacities[iterationId].find(
       (t) => t.teamMember.id == teamMemberId
     );
-    if (capacity) return capacity.activities[0].capacityPerDay.toString();
-    else return "";
+    const workDays = this.getTeamMemberWorkDays(teamMemberId, iterationId);
+    console.log("Work Days:");
+    console.log(workDays);
+    if (capacities) {
+      const sum = capacities.activities
+        .map((activity) => {
+          return activity.capacityPerDay;
+        })
+        .reduce((prev, curr) => {
+          return prev + curr;
+        }, 0);
+
+      return (workDays * sum).toString();
+    }
+
+    return "-";
+  };
+
+  private getTeamMemberWorkDays = (
+    teamMemberId: string,
+    iterationId: string
+  ) => {
+    const capacities = this.props.iterationCapacities[iterationId].find(
+      (t) => t.teamMember.id == teamMemberId
+    );
+    const iteration = this.props.iterations.find(
+      (iter) => iter.id == iterationId
+    );
+    const workingDays = (this.props.teamSettings as TeamSetting).workingDays;
+    const teamDaysOff = this.props.iterationDaysOff[iterationId];
+    if(iteration && capacities) {
+      const workDaysNo = DateUtil.getPersonWorkingDays(workingDays, iteration.attributes.startDate, iteration.attributes.finishDate, capacities.daysOff, teamDaysOff.daysOff);
+      return workDaysNo;
+    }
+    return 0;
   };
 
   private getColumns = (): ITableColumn<any>[] => {
@@ -203,7 +257,10 @@ export default class PlanningTable extends React.Component<
   };
 
   private getIterationCapacity = (iterationId: string) => {
-    //TODO: implement
+    // const iterationCapacities = this.props.iterationCapacities[iterationId];
+    // if(iterationCapacities) {
+    //   iterationCapacities.reduce<number>(, 0);
+    // }
     return 0;
   };
 }
