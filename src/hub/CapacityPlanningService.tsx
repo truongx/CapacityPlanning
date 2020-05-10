@@ -24,8 +24,14 @@ import {
   ILocationService,
   IProjectInfo,
 } from "azure-devops-extension-api/Common";
+import DateUtil from "./DateUtil";
 
-export default abstract class CapacityPlanningService {
+export interface ITeamMemberIterationCapacity {
+  teamMemberId: string;
+  capacity?: number;
+}
+
+export abstract class CapacityPlanningService {
   private static coreRestClient?: CoreRestClient;
   private static workRestClient?: WorkRestClient;
   private static projectService?: IProjectPageService;
@@ -179,6 +185,62 @@ export default abstract class CapacityPlanningService {
 
     return teamDaysOff;
   }
+
+  public static getTeamMemberTotalIterationCapacity(
+    teamSettings: TeamSetting,
+    capacities: TeamMemberCapacityIdentityRef,
+    iteration: TeamSettingsIteration,
+    iterationDaysOff: TeamSettingsDaysOff
+  ) {
+    // const capacities = this.props.iterationCapacities[iterationId].find(
+    //   (t) => t.teamMember.id == teamMemberId
+    // );
+    const workDays = this.getTeamMemberWorkDays(
+      teamSettings,
+      capacities,
+      iteration,
+      iterationDaysOff
+    );
+    console.log("Work Days:");
+    console.log(workDays);
+    if (capacities && capacities.activities.length > 0) {
+      const sum = capacities.activities
+        .map((activity) => {
+          return activity.capacityPerDay;
+        })
+        .reduce((prev, curr) => {
+          return prev + curr;
+        }, 0);
+
+      return (workDays * sum);
+    }
+  }
+
+  public static getTeamMemberWorkDays = (
+    teamSettings: TeamSetting,
+    capacities: TeamMemberCapacityIdentityRef,
+    iteration: TeamSettingsIteration,
+    iterationDaysOff: TeamSettingsDaysOff
+  ) => {
+    // const capacities = this.props.iterationCapacities[iterationId].find(
+    //   (t) => t.teamMember.id == teamMemberId
+    // );
+    // const iteration = this.props.iterations.find(
+    //   (iter) => iter.id == iterationId
+    // );
+    const workingDays = teamSettings.workingDays;
+    if (iteration && capacities) {
+      const workDaysNo = DateUtil.getPersonWorkingDays(
+        teamSettings.workingDays,
+        iteration.attributes.startDate,
+        iteration.attributes.finishDate,
+        capacities.daysOff,
+        iterationDaysOff.daysOff
+      );
+      return workDaysNo;
+    }
+    return 0;
+  };
 
   private static async getProject() {
     return await this.projectService?.getProject();

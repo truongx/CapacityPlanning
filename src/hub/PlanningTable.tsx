@@ -2,11 +2,8 @@ import * as React from "react";
 import {
   Table,
   ITableColumn,
-  TableColumnLayout,
-  renderSimpleCell,
   renderSimpleCellValue,
   ColumnFill,
-  ISimpleTableCell,
   TwoLineTableCell,
 } from "azure-devops-ui/Table";
 import { ObservableValue } from "azure-devops-ui/Core/Observable";
@@ -18,8 +15,6 @@ import {
   TeamSettingsDaysOff,
 } from "azure-devops-extension-api/Work";
 import { ArrayItemProvider } from "azure-devops-ui/Utilities/Provider";
-import { ISimpleListCell } from "azure-devops-ui/List";
-import { css } from "azure-devops-ui/Util";
 import { Card } from "azure-devops-ui/Card";
 import {
   TeamMember,
@@ -32,12 +27,13 @@ import {
   VssPersona,
   IIdentityDetailsProvider,
 } from "azure-devops-ui/VssPersona";
-import DateUtil from "./DateUtil";
+import { ITeamMemberIterationCapacity } from "./CapacityPlanningService";
 
 export interface IPlanningTableProps {
   team?: WebApiTeam;
   iterations: TeamSettingsIteration[];
   teamMembers: TeamMember[];
+  teamMemberIterationCapacities: Dictionary<ITeamMemberIterationCapacity[]>;
   iterationCapacities: Dictionary<TeamMemberCapacityIdentityRef[]>;
   iterationWorkItems: Dictionary<WorkItem[]>;
   iterationDaysOff: Dictionary<TeamSettingsDaysOff>;
@@ -45,17 +41,8 @@ export interface IPlanningTableProps {
   teamSettings?: TeamSetting;
 }
 
-export interface IPlanningTableState {
-  teamMemberIterationCapacities: Dictionary<ITeamMemberIterationCapacity[]>;
-}
-
 export interface ITableItem {
   person: TeamMember;
-}
-
-interface ITeamMemberIterationCapacity {
-  teamMemberId: string;
-  capacity: number;
 }
 
 export default class PlanningTable extends React.Component<
@@ -117,11 +104,16 @@ export default class PlanningTable extends React.Component<
     tableColumn: ITableColumn<ITableItem>,
     tableItem: ITableItem
   ): JSX.Element => {
-    return renderSimpleCellValue<any>(
-      columnIndex,
-      tableColumn,
-      this.getTeamMemberCapacity(tableItem.person.identity.id, tableColumn.id)
-    );
+    const teamMemberCapacity = this.props.teamMemberIterationCapacities[
+      tableColumn.id
+    ].find((t) => {
+      return t.teamMemberId == tableItem.person.identity.id;
+    });
+    let totalCapacity = "-";
+    if (teamMemberCapacity && teamMemberCapacity.capacity) {
+      totalCapacity = teamMemberCapacity.capacity.toString();
+    }
+    return renderSimpleCellValue<any>(columnIndex, tableColumn, totalCapacity);
   };
 
   private renderIterationHeaderCell = (
@@ -135,6 +127,16 @@ export default class PlanningTable extends React.Component<
     );
     const teamName = (this.props.team as WebApiTeam).name;
     const sprintUrl = `${this.props.baseUrl}_sprints\/taskboard\/${teamName}\/${iterationPath}`;
+    const iterationTotalCapacity = this.props.teamMemberIterationCapacities[
+      tableColumn.id
+    ]
+      .map((val) => {
+        if (val.capacity) return val.capacity;
+        else return 0;
+      })
+      .reduce((previousValue, currentValue) => {
+        return previousValue + currentValue;
+      }, 0);
     return (
       <TwoLineTableCell
         className="bolt-table-cell-content-with-inline-link no-v-padding"
@@ -150,7 +152,7 @@ export default class PlanningTable extends React.Component<
         }
         line2={
           <span className="fontSize font-size secondary-text flex-row flex-center text-ellipsis">
-            Capacity: {this.getIterationCapacity(tableColumn.id)}
+            Capacity: {iterationTotalCapacity}
             <br />
             Effort: {this.getIterationEffort(tableColumn.id)}
           </span>
@@ -171,50 +173,6 @@ export default class PlanningTable extends React.Component<
       },
     };
   }
-
-  private getTeamMemberCapacity = (
-    teamMemberId: string,
-    iterationId: string
-  ): string => {
-    const capacities = this.props.iterationCapacities[iterationId].find(
-      (t) => t.teamMember.id == teamMemberId
-    );
-    const workDays = this.getTeamMemberWorkDays(teamMemberId, iterationId);
-    console.log("Work Days:");
-    console.log(workDays);
-    if (capacities) {
-      const sum = capacities.activities
-        .map((activity) => {
-          return activity.capacityPerDay;
-        })
-        .reduce((prev, curr) => {
-          return prev + curr;
-        }, 0);
-
-      return (workDays * sum).toString();
-    }
-
-    return "-";
-  };
-
-  private getTeamMemberWorkDays = (
-    teamMemberId: string,
-    iterationId: string
-  ) => {
-    const capacities = this.props.iterationCapacities[iterationId].find(
-      (t) => t.teamMember.id == teamMemberId
-    );
-    const iteration = this.props.iterations.find(
-      (iter) => iter.id == iterationId
-    );
-    const workingDays = (this.props.teamSettings as TeamSetting).workingDays;
-    const teamDaysOff = this.props.iterationDaysOff[iterationId];
-    if(iteration && capacities) {
-      const workDaysNo = DateUtil.getPersonWorkingDays(workingDays, iteration.attributes.startDate, iteration.attributes.finishDate, capacities.daysOff, teamDaysOff.daysOff);
-      return workDaysNo;
-    }
-    return 0;
-  };
 
   private getColumns = (): ITableColumn<any>[] => {
     let columns = new Array<ITableColumn<any>>();
@@ -253,14 +211,6 @@ export default class PlanningTable extends React.Component<
 
   private getIterationEffort = (iterationId: string) => {
     //TODO: implement
-    return 0;
-  };
-
-  private getIterationCapacity = (iterationId: string) => {
-    // const iterationCapacities = this.props.iterationCapacities[iterationId];
-    // if(iterationCapacities) {
-    //   iterationCapacities.reduce<number>(, 0);
-    // }
     return 0;
   };
 }
