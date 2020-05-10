@@ -70,7 +70,7 @@ class Hub extends React.Component<{}, IHubState> {
   private async initializeState(): Promise<void> {
     await CapacityPlanningService.init();
     const project = CapacityPlanningService.project;
-    const teams = await CapacityPlanningService.getAllTeams();
+    const teams = await CapacityPlanningService.getTeams((project as IProjectInfo).id);
     const baseUrl = CapacityPlanningService.baseUrl;
     if (project && teams && baseUrl) {
       this.setState({ teams, project, baseUrl });

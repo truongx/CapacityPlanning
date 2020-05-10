@@ -59,8 +59,8 @@ export abstract class CapacityPlanningService {
     this.baseUrl = `${serviceUrl}${(this.project as ProjectInfo).name}\/`;
   }
 
-  public static async getAllTeams() {
-    return await this.coreRestClient?.getAllTeams();
+  public static async getTeams(projectId: string) {
+    return await this.coreRestClient?.getTeams(projectId);
   }
 
   public static async getTeamSettings(teamContext: TeamContext) {
@@ -212,7 +212,7 @@ export abstract class CapacityPlanningService {
           return prev + curr;
         }, 0);
 
-      return (workDays * sum);
+      return workDays * sum;
     }
   }
 
