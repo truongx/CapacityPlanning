@@ -25,10 +25,16 @@ import {
   IProjectInfo,
 } from "azure-devops-extension-api/Common";
 import DateUtil from "./DateUtil";
+import { ASSIGNED_TO, EFFORT } from "./FieldIds";
 
 export interface ITeamMemberIterationCapacity {
   teamMemberId: string;
   capacity?: number;
+}
+
+export interface ITeamMemberIterationEffort {
+  teamMemberId: string;
+  effort?: number;
 }
 
 export abstract class CapacityPlanningService {
@@ -159,7 +165,7 @@ export abstract class CapacityPlanningService {
       if (workItemIds.length > 0) {
         const workItems = await API.getClient(
           WorkItemTrackingRestClient
-        ).getWorkItems(workItemIds, teamContext.project);
+        ).getWorkItems(workItemIds, teamContext.project, [ASSIGNED_TO, EFFORT]);
 
         console.log("Iteration work items:");
         console.log(workItems);
@@ -192,9 +198,6 @@ export abstract class CapacityPlanningService {
     iteration: TeamSettingsIteration,
     iterationDaysOff: TeamSettingsDaysOff
   ) {
-    // const capacities = this.props.iterationCapacities[iterationId].find(
-    //   (t) => t.teamMember.id == teamMemberId
-    // );
     const workDays = this.getTeamMemberWorkDays(
       teamSettings,
       capacities,
@@ -222,12 +225,6 @@ export abstract class CapacityPlanningService {
     iteration: TeamSettingsIteration,
     iterationDaysOff: TeamSettingsDaysOff
   ) => {
-    // const capacities = this.props.iterationCapacities[iterationId].find(
-    //   (t) => t.teamMember.id == teamMemberId
-    // );
-    // const iteration = this.props.iterations.find(
-    //   (iter) => iter.id == iterationId
-    // );
     const workingDays = teamSettings.workingDays;
     if (iteration && capacities) {
       const workDaysNo = DateUtil.getPersonWorkingDays(

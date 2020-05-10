@@ -25,7 +25,10 @@ import Dictionary from "./Dictionary";
 import {
   CapacityPlanningService,
   ITeamMemberIterationCapacity,
+  ITeamMemberIterationEffort,
 } from "./CapacityPlanningService";
+import { Identity } from "azure-devops-extension-api/Identities/Identities";
+import { ASSIGNED_TO, EFFORT } from "./FieldIds";
 
 interface IHubState {
   project?: IProjectInfo;
@@ -33,6 +36,7 @@ interface IHubState {
   team?: WebApiTeam;
   teamMembers: TeamMember[];
   teamMemberIterationCapacities: Dictionary<ITeamMemberIterationCapacity[]>;
+  teamMemberIterationEfforts: Dictionary<ITeamMemberIterationEffort[]>;
   teamSettings?: TeamSetting;
   iterations: TeamSettingsIteration[];
   iterationCapacities: Dictionary<TeamMemberCapacityIdentityRef[]>;
@@ -54,6 +58,7 @@ class Hub extends React.Component<{}, IHubState> {
       teams: [],
       teamMembers: [],
       teamMemberIterationCapacities: {},
+      teamMemberIterationEfforts: {},
       iterationCapacities: {},
       iterationWorkItems: {},
       iterationDaysOff: {},
@@ -70,7 +75,9 @@ class Hub extends React.Component<{}, IHubState> {
   private async initializeState(): Promise<void> {
     await CapacityPlanningService.init();
     const project = CapacityPlanningService.project;
-    const teams = await CapacityPlanningService.getTeams((project as IProjectInfo).id);
+    const teams = await CapacityPlanningService.getTeams(
+      (project as IProjectInfo).id
+    );
     const baseUrl = CapacityPlanningService.baseUrl;
     if (project && teams && baseUrl) {
       this.setState({ teams, project, baseUrl });
@@ -159,6 +166,7 @@ class Hub extends React.Component<{}, IHubState> {
               teamMemberIterationCapacities={
                 this.state.teamMemberIterationCapacities
               }
+              teamMemberIterationEfforts={this.state.teamMemberIterationEfforts}
             />
           )}
           {this.state.team && this.debug && (
@@ -261,7 +269,8 @@ class Hub extends React.Component<{}, IHubState> {
     let iterationWorkItems: Dictionary<WorkItem[]> = {};
     let iterationDaysOff: Dictionary<TeamSettingsDaysOff> = {};
     let teamMemberIterationCapacities: Dictionary<ITeamMemberIterationCapacity[]> = {};
-    this.setState({ loadingMessage: "Calculating capacities..." });
+    let teamMemberIterationEfforts: Dictionary<ITeamMemberIterationEffort[]> = {};
+    this.setState({ loadingMessage: "Calculating capacities/efforts..." });
     for (let iter of iterations) {
       console.log("Iteration '" + iter.name);
       const capacities = await CapacityPlanningService.getCapacities(
@@ -294,6 +303,34 @@ class Hub extends React.Component<{}, IHubState> {
           capacity: teamMemberTotalIterationCapacity,
         });
       }
+
+      teamMemberIterationEfforts[iter.id] = [];
+      let iterationEfforts: Dictionary<number[]> = {};
+
+      for (const workItem of iterationWorkItems[iter.id]) {
+        const assignedTo = workItem.fields[ASSIGNED_TO];
+        const effort = workItem.fields[EFFORT];
+        if (assignedTo && assignedTo.id) {
+          if (!iterationEfforts[assignedTo.id]) {
+            iterationEfforts[assignedTo.id] = [];
+          }
+          if (effort) iterationEfforts[assignedTo.id].push(effort);
+        }
+      }
+
+      for (const teamMemberId in iterationEfforts) {
+        const totalEffort = iterationEfforts[teamMemberId].reduce(
+          (previousValue, currentValue) => {
+            return previousValue + currentValue;
+          },
+          0
+        );
+        teamMemberIterationEfforts[iter.id].push({
+          teamMemberId: teamMemberId,
+          effort: totalEffort,
+        });
+      }
+      console.log(teamMemberIterationEfforts);
     }
 
     this.setState({
@@ -305,6 +342,7 @@ class Hub extends React.Component<{}, IHubState> {
       iterationWorkItems,
       iterationDaysOff,
       teamMemberIterationCapacities,
+      teamMemberIterationEfforts,
     });
   };
 }

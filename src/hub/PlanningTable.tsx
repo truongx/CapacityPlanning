@@ -27,13 +27,18 @@ import {
   VssPersona,
   IIdentityDetailsProvider,
 } from "azure-devops-ui/VssPersona";
-import { ITeamMemberIterationCapacity } from "./CapacityPlanningService";
+import {
+  ITeamMemberIterationCapacity,
+  ITeamMemberIterationEffort,
+} from "./CapacityPlanningService";
+import { ISimpleListCell } from "azure-devops-ui/List";
 
 export interface IPlanningTableProps {
   team?: WebApiTeam;
   iterations: TeamSettingsIteration[];
   teamMembers: TeamMember[];
   teamMemberIterationCapacities: Dictionary<ITeamMemberIterationCapacity[]>;
+  teamMemberIterationEfforts: Dictionary<ITeamMemberIterationEffort[]>;
   iterationCapacities: Dictionary<TeamMemberCapacityIdentityRef[]>;
   iterationWorkItems: Dictionary<WorkItem[]>;
   iterationDaysOff: Dictionary<TeamSettingsDaysOff>;
@@ -104,16 +109,22 @@ export default class PlanningTable extends React.Component<
     tableColumn: ITableColumn<ITableItem>,
     tableItem: ITableItem
   ): JSX.Element => {
-    const teamMemberCapacity = this.props.teamMemberIterationCapacities[
-      tableColumn.id
-    ].find((t) => {
-      return t.teamMemberId == tableItem.person.identity.id;
-    });
-    let totalCapacity = "-";
-    if (teamMemberCapacity && teamMemberCapacity.capacity) {
-      totalCapacity = teamMemberCapacity.capacity.toString();
-    }
-    return renderSimpleCellValue<any>(columnIndex, tableColumn, totalCapacity);
+    const totalCapacity = this.getTeamMemberCapacity(
+      tableColumn.id,
+      tableItem.person.identity.id
+    );
+    const totalEffort = this.getTeamMemberEffort(
+      tableColumn.id,
+      tableItem.person.identity.id
+    );
+    const cellText = `${totalEffort ? totalEffort : "-"}/${
+      totalCapacity ? totalCapacity : "-"
+    }`;
+    const cell = {
+      text: cellText,
+      textClassName: this.getUtilizationClass(totalEffort, totalCapacity),
+    } as ISimpleListCell;
+    return renderSimpleCellValue<any>(columnIndex, tableColumn, cell);
   };
 
   private renderIterationHeaderCell = (
@@ -127,16 +138,9 @@ export default class PlanningTable extends React.Component<
     );
     const teamName = (this.props.team as WebApiTeam).name;
     const sprintUrl = `${this.props.baseUrl}_sprints\/taskboard\/${teamName}\/${iterationPath}`;
-    const iterationTotalCapacity = this.props.teamMemberIterationCapacities[
-      tableColumn.id
-    ]
-      .map((val) => {
-        if (val.capacity) return val.capacity;
-        else return 0;
-      })
-      .reduce((previousValue, currentValue) => {
-        return previousValue + currentValue;
-      }, 0);
+    const iterationTotalCapacity = this.getIterationCapacity(tableColumn.id);
+    const iterationTotalEffort = this.getIterationEffort(tableColumn.id);
+
     return (
       <TwoLineTableCell
         className="bolt-table-cell-content-with-inline-link no-v-padding"
@@ -154,12 +158,24 @@ export default class PlanningTable extends React.Component<
           <span className="fontSize font-size secondary-text flex-row flex-center text-ellipsis">
             Capacity: {iterationTotalCapacity}
             <br />
-            Effort: {this.getIterationEffort(tableColumn.id)}
+            Effort: {iterationTotalEffort}
           </span>
         }
       />
     );
   };
+
+  private getUtilizationClass(
+    totalEffort: number | undefined,
+    totalCapacity: number | undefined
+  ) {
+    if (totalEffort && totalCapacity) {
+      const ratio = totalEffort / totalCapacity;
+      if (ratio >= 1) return "utilization-high";
+      if (ratio >= 0.6) return "utilization-medium";
+      return "utilization-low";
+    }
+  }
 
   private getIdentityDetails(
     identity: IdentityRef
@@ -209,8 +225,47 @@ export default class PlanningTable extends React.Component<
     return new ArrayItemProvider(items);
   };
 
-  private getIterationEffort = (iterationId: string) => {
-    //TODO: implement
-    return 0;
-  };
+  private getTeamMemberCapacity(iterationId: string, teamMemberId: string) {
+    const teamMemberCapacity = this.props.teamMemberIterationCapacities[
+      iterationId
+    ].find((t) => {
+      return t.teamMemberId == teamMemberId;
+    });
+    if (teamMemberCapacity && teamMemberCapacity.capacity) {
+      return teamMemberCapacity.capacity;
+    }
+  }
+
+  private getTeamMemberEffort(iterationId: string, teamMemberId: string) {
+    const teamMemberEffort = this.props.teamMemberIterationEfforts[
+      iterationId
+    ].find((t) => {
+      return t.teamMemberId == teamMemberId;
+    });
+    if (teamMemberEffort && teamMemberEffort.effort) {
+      return teamMemberEffort.effort;
+    }
+  }
+
+  private getIterationCapacity(iterationId: string) {
+    return this.props.teamMemberIterationCapacities[iterationId]
+      .map((val) => {
+        if (val.capacity) return val.capacity;
+        else return 0;
+      })
+      .reduce((previousValue, currentValue) => {
+        return previousValue + currentValue;
+      }, 0);
+  }
+
+  private getIterationEffort(iterationId: string) {
+    return this.props.teamMemberIterationEfforts[iterationId]
+      .map((val) => {
+        if (val.effort) return val.effort;
+        else return 0;
+      })
+      .reduce((previousValue, currentValue) => {
+        return previousValue + currentValue;
+      }, 0);
+  }
 }
