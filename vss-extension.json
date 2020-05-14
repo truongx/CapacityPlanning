@@ -1,6 +1,6 @@
 {
   "manifestVersion": 1,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "name": "Capacity Planning",
   "description": "Capacity Planning hub allows you to get a bird's eye view on the work planned for people across sprints",
   "publisher": "truongx",
@@ -45,7 +45,7 @@
         "ms.vss-work-web.work-hub-group"
       ],
       "properties": {
-        "name": "Capacity Planing",
+        "name": "Capacity Planning",
         "icon": {
           "dark": "img/darkTheme/hubIcon.png",
           "light": "img/lightTheme/hubIcon.png"
